@@ -1,5 +1,5 @@
 ﻿#Requires AutoHotkey v2.0
-#Include <LV_EX>
+#Include <LV_EX\Sources\LV_EX>
 
 mainGui := Gui("+Resize")
 mainGui.Title := "LV_EX Groups Sample"
