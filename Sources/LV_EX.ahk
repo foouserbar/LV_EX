@@ -444,6 +444,71 @@ LV_EX_MapIndexToID(HLV, Index) {
    ; LVM_MAPINDEXTOID = 0x10B4 -> http://msdn.microsoft.com/en-us/library/bb761139(v=vs.85).aspx
    Return SendMessage(0x10B4, Index - 1, 0, , "ahk_id " . HLV)
 }
+; ================================================================================================================================
+; LV_EX_MoveRow
+; Moves a complete row within an own ListView control.
+;     HLV            -  the handle to the ListView
+;     RowNumber      -  the number of the row to be moved
+;     InsertBefore   -  the number of the row to insert the moved row before
+;     MaxTextLength  -  maximum length of item/subitem text being retrieved
+; Returns the new row number of the moved row on success, otherwise zero (False).
+; ================================================================================================================================
+; SOURCE: https://www.autohotkey.com/boards/viewtopic.php?p=228092&sid=56ba922d89f48156db466a31b579c37a#p228092
+LV_EX_MoveRow(lvCtrl, RowNumber, InsertBefore, MaxTextLength := 257) {
+   Static LVM_GETITEM := A_IsUnicode ? 0x104B : 0x1005
+   Static LVM_INSERTITEM := A_IsUnicode ? 0x104D : 0x1007
+   Static LVM_SETITEM := A_IsUnicode ? 0x104C : 0x1006
+   Static OffMask := 0
+        , OffItem := OffMask + 4
+        , OffSubItem := OffItem + 4
+        , OffState := OffSubItem + 4
+        , OffStateMask := OffState + 4
+        , OffText := OffStateMask + A_PtrSize
+        , OffTextLen := OffText + A_PtrSize
+   HLV := lvCtrl.Hwnd
+   ; Some checks -----------------------------------------------------------------------------------------------------------------
+   If (RowNumber = InsertBefore)
+      Return False
+   Rows := DllCall("SendMessage", "Ptr", HLV, "UInt", 0x1004, "Ptr", 0, "Ptr", 0, "Int") ; LVM_GETITEMCOUNT
+   If (RowNumber < 1) || (InsertBefore < 1) || (RowNumber > Rows)
+      Return False
+   ; Move it, if possible --------------------------------------------------------------------------------------------------------
+   lvCtrl.Opt("-Redraw")
+   HHD := DllCall("SendMessage", "Ptr", HLV, "UInt", 0x101F, "Ptr", 0, "Ptr", 0, "UPtr") ; LVM_GETHEADER
+   Columns := DllCall("SendMessage", "Ptr", HHD, "UInt", 0x1200, "Ptr", 0, "Ptr", 0, "Int") ; HDM_GETITEMCOUNT
+   Item := RowNumber - 1
+   StructSize := 88 + (MaxTextLength << !!A_IsUnicode)
+   LVITEM := Buffer(StructSize, 0)
+   NumPut("UInt", 0x01031F, LVITEM, OffMask) ; might need to be adjusted for Win XP/Vista
+   NumPut("Int", Item, LVITEM, OffItem)
+   NumPut("UInt", -1, LVITEM, OffStateMask)
+   NumPut("Ptr", LVITEM.Ptr + 88, LVITEM, OffText)
+   NumPut("Int", MaxTextLength, LVITEM, OffTextLen)
+   If !DllCall("SendMessage", "Ptr", HLV, "UInt", LVM_GETITEM, "Ptr", 0, "Ptr", LVITEM.Ptr, "Int")
+      Return False
+   NumPut("Int", InsertBefore - 1, LVITEM, OffItem)
+   NewItem := DllCall("SendMessage", "Ptr", HLV, "UInt", LVM_INSERTITEM, "Ptr", 0, "Ptr", LVITEM.Ptr, "Int")
+   If (NewItem = -1)
+      Return False
+   DllCall("SendMessage", "Ptr", HLV, "UInt", 0x102B, "Ptr", NewItem, "Ptr", LVITEM.Ptr) ; LVM_SETITEMSTATE
+   If (InsertBefore <= RowNumber)
+      Item++
+   LVITEM := Buffer(StructSize, 0) ; reinitialize
+   Loop Columns {
+      NumPut("UInt", 0x03, LVITEM, OffMask)
+      NumPut("Int", Item, LVITEM, OffItem)
+      NumPut("Int", A_Index, LVITEM, OffSubItem)
+      NumPut("Ptr", LVITEM.Ptr + 88, LVITEM, OffText)
+      NumPut("Int", MaxTextLength, LVITEM, OffTextLen)
+      If !DllCall("SendMessage", "Ptr", HLV, "UInt", LVM_GETITEM, "Ptr", 0, "Ptr", LVITEM.Ptr, "Int")
+         Return False
+      NumPut("Int", NewItem, LVITEM, OffItem)
+      DllCall("SendMessage", "Ptr", HLV, "UInt", LVM_SETITEM, "Ptr", 0, "Ptr", LVITEM.Ptr, "Int")
+   }
+   Result := DllCall("SendMessage", "Ptr", HLV, "UInt", 0x1008, "Ptr", Item, "Ptr", 0) ; LVM_DELETEITEM
+   lvCtrl.Opt("+Redraw")
+   Return (Result ? (NewItem + 1) : 0)
+}
 ; ======================================================================================================================
 ; LV_EX_RedrawRows - Forces a list-view control to redraw a range of items.
 ; ======================================================================================================================
