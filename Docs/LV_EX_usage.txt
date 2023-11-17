@@ -295,6 +295,16 @@ Params:
    Row      -  the row number.
 Returns:    The unique ID of the given row.
 ========================================================================================================================
+LV_EX_MoveRow(lvCtrl, RowNumber, InsertBefore, MaxTextLength := 257) {
+========================================================================================================================
+Moves a complete row within an own ListView control.
+Params:
+    HLV            -  the handle to the ListView
+    RowNumber      -  the number of the row to be moved    
+    InsertBefore   -  the number of the row to insert the moved row before
+    MaxTextLength  -  maximum length of item/subitem text being retrieved
+Returns:     the new row number of the moved row on success, otherwise zero (False).
+========================================================================================================================
 LV_EX_RedrawRows(HLV, First := 0, Last := "")
 ========================================================================================================================
 Forces a ListView to redraw a range of items.
@@ -395,6 +405,16 @@ Params:
    Lines    -  the maximum number of additional text lines.
                Specify 0 to remove additional lines.
 Returns:    1/0
+========================================================================================================================
+LV_EX_SortArrow(HLV, c, d := "")                         by Solar. http://www.autohotkey.com/forum/viewtopic.php?t=69642
+========================================================================================================================
+Adds a sort arrow to a column header.
+Params:
+   c        -  1 based index of the column
+   d        -  Optional direction to set the arrow. "asc" or "up". "desc" or "down".
+Returns: On success: 1
+         On failure: 0
+         nothing changed: ""
 ========================================================================================================================
 LV_EX_SubItemHitTest(HLV, X := -1, Y := -1)
 ========================================================================================================================

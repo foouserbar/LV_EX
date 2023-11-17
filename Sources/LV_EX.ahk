@@ -2,9 +2,12 @@
 ; ======================================================================================================================
 ; Namespace:      LV_EX
 ; Function:       Some additional functions to use with AHK ListView controls.
-; Tested with:    AHK 2.0.10 (A32/U32/U64)
+; Tested with:    AHK 2.0.10
 ; Tested on:      Win 10 (x64)
 ; Changelog:
+;              /2023-11-17/foouserbar  -  converted to ahk v2
+;                                      -  added LV_EX_SortArrow by Solar
+;                                      -  added LV_EX__MoveRow by just me
 ;     1.1.01.00/2016-04-28(just me     -  added LV_EX_GroupGetState contributed by Pulover.
 ;     1.1.00.00/2015-03-13/just me     -  added basic tile view support (suggested by toralf),
 ;                                         added basic (XP compatible) group view support,
@@ -14,9 +17,8 @@
 ;     In terms of Microsoft
 ;        Item     stands for the whole row or the first column of the row
 ;        SubItem  stands for the second to last column of a row
-;     All functions require the handle of the ListView (HWND). You get this handle using the 'Hwnd' option when
-;     creating the control per 'Gui, Add, HwndHwndOfLV ...' or using 'GuiControlGet, HwndOfLV, Hwnd, MyListViewVar'
-;     after control creation.
+;     All functions require the handle of the ListView (HWND). You get this handle from the 'Hwnd' property of the
+;     ListView instance.
 ; Credits:
 ;     LV_EX tile view functions:
 ;        Initial idea by segalion (old forum: /board/topic/80754-listview-with-multiline-in-report-mode-help/)
@@ -425,7 +427,7 @@ LV_EX_IsRowVisible(HLV, Row) {
 }
 ; ======================================================================================================================
 ; CommCtrl.h:
-; // These next to methods make it easy to identify an item that can be repositioned
+; // These next two methods make it easy to identify an item that can be repositioned
 ; // within listview. For example: Many developers use the lParam to store an identifier that is
 ; // unique. Unfortunatly, in order to find this item, they have to iterate through all of the items
 ; // in the listview. Listview will maintain a unique identifier.  The upper bound is the size of a DWORD.
@@ -444,7 +446,7 @@ LV_EX_MapIndexToID(HLV, Index) {
    ; LVM_MAPINDEXTOID = 0x10B4 -> http://msdn.microsoft.com/en-us/library/bb761139(v=vs.85).aspx
    Return SendMessage(0x10B4, Index - 1, 0, , "ahk_id " . HLV)
 }
-; ================================================================================================================================
+; ======================================================================================================================
 ; LV_EX_MoveRow
 ; Moves a complete row within an own ListView control.
 ;     HLV            -  the handle to the ListView
@@ -452,9 +454,9 @@ LV_EX_MapIndexToID(HLV, Index) {
 ;     InsertBefore   -  the number of the row to insert the moved row before
 ;     MaxTextLength  -  maximum length of item/subitem text being retrieved
 ; Returns the new row number of the moved row on success, otherwise zero (False).
-; ================================================================================================================================
+; ======================================================================================================================
 ; SOURCE: https://www.autohotkey.com/boards/viewtopic.php?p=228092&sid=56ba922d89f48156db466a31b579c37a#p228092
-LV_EX_MoveRow(lvCtrl, RowNumber, InsertBefore, MaxTextLength := 257) {
+LV_EX_MoveRow(HLV, RowNumber, InsertBefore, MaxTextLength := 257) {
    Static LVM_GETITEM := A_IsUnicode ? 0x104B : 0x1005
    Static LVM_INSERTITEM := A_IsUnicode ? 0x104D : 0x1007
    Static LVM_SETITEM := A_IsUnicode ? 0x104C : 0x1006
@@ -465,14 +467,14 @@ LV_EX_MoveRow(lvCtrl, RowNumber, InsertBefore, MaxTextLength := 257) {
         , OffStateMask := OffState + 4
         , OffText := OffStateMask + A_PtrSize
         , OffTextLen := OffText + A_PtrSize
-   HLV := lvCtrl.Hwnd
-   ; Some checks -----------------------------------------------------------------------------------------------------------------
+   lvCtrl := GuiCtrlFromHwnd(HLV)
+   ; Some checks -------------------------------------------------------------------------------------------------------
    If (RowNumber = InsertBefore)
       Return False
    Rows := DllCall("SendMessage", "Ptr", HLV, "UInt", 0x1004, "Ptr", 0, "Ptr", 0, "Int") ; LVM_GETITEMCOUNT
    If (RowNumber < 1) || (InsertBefore < 1) || (RowNumber > Rows)
       Return False
-   ; Move it, if possible --------------------------------------------------------------------------------------------------------
+   ; Move it, if possible ----------------------------------------------------------------------------------------------
    lvCtrl.Opt("-Redraw")
    HHD := DllCall("SendMessage", "Ptr", HLV, "UInt", 0x101F, "Ptr", 0, "Ptr", 0, "UPtr") ; LVM_GETHEADER
    Columns := DllCall("SendMessage", "Ptr", HHD, "UInt", 0x1200, "Ptr", 0, "Ptr", 0, "Int") ; HDM_GETITEMCOUNT
@@ -697,6 +699,38 @@ LV_EX_SetTileViewLines(HLV, Lines) {
    NumPut("UInt", 0x00000003, LVTVI, 4)    ; dwMask = LVTVIM_TILESIZE | LVTVIM_COLUMNS
    NumPut("Int", Lines, LVTVI, OffLines) ; c_lines: max lines below first line
    Return SendMessage(0x10A2, 0, LVTVI, , "ahk_id " . HLV) ; LVM_SETTILEVIEWINFO
+}
+; ======================================================================================================================
+; LV_EX_SortArrow by Solar. http://www.autohotkey.com/forum/viewtopic.php?t=69642
+; c = 1 based index of the column
+; d = Optional direction to set the arrow. "asc" or "up". "desc" or "down".
+; ======================================================================================================================
+LV_EX_SortArrow(HLV, c, d := "") {
+	static ptr, ptrSize, lvColumn, LVM_GETCOLUMN, LVM_SETCOLUMN
+	if (!IsSet(ptr))
+        ptr := A_PtrSize ? (ptrSize := A_PtrSize, "ptr") : (ptrSize := 4, "uint")
+		, LVM_GETCOLUMN := A_IsUnicode ? (LVM_SETCOLUMN := 4192, 4191) : (LVM_SETCOLUMN := 4122, 4121)
+		, lvColumn := Buffer(ptrSize + 4)
+        , NumPut("uint", 1, lvColumn)
+	c -= 1
+    DllCall("SendMessage", ptr, HLV, "uint", LVM_GETCOLUMN, "uint", c, ptr, lvColumn.ptr)
+    if ((fmt := NumGet(lvColumn, 4, "int")) & 1024) {
+		if (d && d = "asc" || d = "up")
+			return
+		NumPut("int", fmt & ~1024 | 512, lvColumn, 4)
+	} else if (fmt & 512) {
+		if (d && d = "desc" || d = "down")
+			return
+		NumPut("int", fmt & ~512 | 1024, lvColumn, 4)
+	} else {
+		Loop DllCall("SendMessage", ptr, DllCall("SendMessage", ptr, HLV, "uint", 4127), "uint", 4608)
+			if ((i := A_Index - 1) != c)
+				DllCall("SendMessage", ptr, HLV, "uint", LVM_GETCOLUMN, "uint", i, ptr, lvColumn.ptr)
+				, NumPut("int", NumGet(lvColumn, 4, "int") & ~1536, lvColumn, 4)
+				, DllCall("SendMessage", ptr, HLV, "uint", LVM_SETCOLUMN, "uint", i, ptr, lvColumn.ptr)
+		NumPut("int", fmt | (d && d = "desc" || d = "down" ? 512 : 1024), lvColumn, 4)
+	}
+	return DllCall("SendMessage", ptr, HLV, "uint", LVM_SETCOLUMN, "uint", c, ptr, lvColumn.ptr)
 }
 ; ======================================================================================================================
 ; LV_EX_SubItemHitTest - Gets the column (subitem) at the passed coordinates or the position of the mouse cursor.
