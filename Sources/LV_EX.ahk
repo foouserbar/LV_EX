@@ -92,7 +92,7 @@ LV_EX_FindStringEx(HLV, Str, Column := 0, Start := 0, Partial := False) {
          }
       }
    } Until (Col > 0)
-   Return (Col > 0) ? {Row: Row, Col: Column} : 0
+   Return (Col > 0) ? {Row: Row, Col: Col} : 0
 }
 ; ======================================================================================================================
 ; LV_EX_GetColumnOrder - Gets the current left-to-right order of columns in a list-view control.
