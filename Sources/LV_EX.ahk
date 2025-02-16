@@ -630,7 +630,39 @@ LV_EX_SetItemParam(HLV, Row, Value) {
    NumPut("UPtr", Value, LVITEM, OffParam)
    Return SendMessage(0x1006, 0, LVITEM, , "ahk_id " . HLV)
 }
-
+; ======================================================================================================================
+; LV_EX_SetRowHeight - Sets the ListViews Row Height
+; https://www.codeproject.com/Articles/1401/Changing-Row-Height-in-an-owner-drawn-Control
+; https://www.autohotkey.com/boards/viewtopic.php?p=551679#p551679
+; ======================================================================================================================
+LV_EX_SetRowHeight(HLV, height) {
+    cb(w, l, m, h) {
+        ; msgbox NumGet(l, 8, "UInt") . "`n" . HLV . "`n" . h . "`n" . GuiCtrlFromHwnd(HLV).Gui.Hwnd
+        ; if (HLV == NumGet(l, 8, "UInt")) ; seems that itemID isn't reliable for ListViews
+        if (h == GuiCtrlFromHwnd(HLV).Gui.Hwnd && w == DllCall("GetWindowLongPtr", "Ptr", HLV, "Int", -12, "Ptr")) {
+            NumPut("UInt", height, l, 16)
+            Return True
+        }
+        Return False
+    }
+    lvctrl := GuiCtrlFromHwnd(HLV)
+    if (!(0x400 & WinGetStyle(lvctrl))) {
+        lvctrl.Opt("+0x400") 
+        restoreLVS := True
+    }
+    OnMessage(0x2C, cb, -1) ; WM_MEASUREITEM := 44 ; 0x2C
+    lpRect := Buffer(16, 0)
+    DllCall("GetWindowRect", "Ptr", HLV, "Ptr", lpRect, "Int")
+    wp := Buffer(36, 0)
+    NumPut("Ptr", HLV, wp, 0)
+    NumPut("Int", NumGet(lpRect, 8, "Int") - NumGet(lpRect, 0, "Int"), wp, 24)
+    NumPut("Int", NumGet(lpRect, 12, "Int") - NumGet(lpRect, 4, "Int"), wp, 28)
+    NumPut("UInt", 0x0016, wp, 32) ; SWP_NOMOVE 0x0002 | SWP_NOZORDER 0x0004 | SWP_NOACTIVATE 0x0010
+    SendMessage(0x47, 0, wp, HLV) ; WM_WINDOWPOSCHANGED := 71 ; 0x47
+    OnMessage(0x2C, cb, 0)
+    if (IsSet(restoreLVS))
+        lvctrl.Opt("-0x400")
+}
 ; ======================================================================================================================
 ; LV_EX_SetSubItemImage - Assigns an image from the list-view's image list to this subitem.
 ; ======================================================================================================================
